@@ -1,0 +1,29 @@
+#################################################################
+####   Create the (sparse) model matrices for all samples   #####
+################################################################# 
+
+#strain <- sparse.model.matrix(TARGET ~ .- 1  , data = modelDevSample)
+
+model_formula <- as.formula(TARGET ~ . - 1) #TARGET'I ÇIKARMAK İÇİN
+
+sparse_train <- sparse.model.matrix(model_formula, data = modelDevSample)
+label_train <- modelDevSample$TARGET
+dense_train <- xgb.DMatrix(data = sparse_train,  label = label_train)
+
+sparse_test <- sparse.model.matrix(model_formula, data = modelTestSample)
+label_test <- modelTestSample$TARGET
+dense_test <- xgb.DMatrix(data = sparse_test, label = label_test)
+
+################################################################
+#############      Hyperparameters Tuning with    ##############
+#############          Grid Search inside         ##############
+################################################################
+
+searchGridSubCol <- expand.grid(gamma = c(0,1), #default value set to 0.
+                                max_depth = c(6,5), #the default value is set to 6. 
+                                lambda = c(0.2,0.4, 0.5),
+                                eta = c(0.1,0.2,0.3) #default value is set to 0.3 
+                               )
+
+ntrees <- 200
+
