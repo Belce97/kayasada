@@ -1,3 +1,13 @@
+
+#################################################################
+#############    Create train/test/oot samples  #################
+#################################################################
+#split 75-25
+
+modelDevSeq <- sample(1:nrow(DT), round(nrow(DT)*0.75) , replace = FALSE)
+modelDevSample  <- DT[modelDevSeq]
+modelTestSample <- DT[!modelDevSeq] #dropping modelDevSeq table from DT and then getting modelTestSample
+
 #################################################################
 ####   Create the (sparse) model matrices for all samples   #####
 ################################################################# 
@@ -25,5 +35,130 @@ searchGridSubCol <- expand.grid(gamma = c(0,1), #default value set to 0.
                                 eta = c(0.1,0.2,0.3) #default value is set to 0.3 
                                )
 
-ntrees <- 200
+ntrees <- 100
 
+rmseErrorsHyperparameters <- apply(searchGridSubCol, 1, function(parameterList)
+
+{
+  #Extract Parameters to test
+  currentGamma <- parameterList[["gamma"]]
+  currentDepth <- parameterList[["max_depth"]]
+  currentLambda <- parameterList[["lambda"]]
+  currentEta <- parameterList[["eta"]]
+  xgboostModelCV <- xgb.cv(data =  dense_train,
+                           nrounds = ntrees,
+                           nfold = 5,
+                           showsd = F,
+                           print_every_n = 10, #her 10 tanede bir öğren, her 10 dallanmada öğren.
+                           "eval_metric" = "rmse",
+                           "objective"   = "reg:linear",
+                           "booster" = "dart",
+                           "gamma" = currentGamma,
+                           "eta" = currentEta,
+                           "lambda" = currentLambda,
+                           "max.depth" = currentDepth,
+                           "seed" = 123456,
+                           maximize = TRUE)
+  
+  xvalidationScores <- as.data.table(xgboostModelCV$evaluation_log)
+  rmse <- tail(xvalidationScores$test_rmse_mean, 1)
+  trmse <- tail(xvalidationScores$sparse_train_rmse_mean,1)
+  output <- c(rmse, trmse, currentGamma,currentLambda , currentDepth, currentEta)
+  }
+)
+
+output <- as.data.table(t(rmseErrorsHyperparameters))
+varnames <- c("Test RMSE", "Train RMSE", "currentGamma","currentLambda",  "currentDepth",  "currentEta")
+names(output) <- varnames
+head(output) 
+
+
+xgboost_params <- list(
+  objective   = "reg:linear", #lineer regresyon 
+  booster="dart",
+  eval_metric = "rmse"
+)
+
+
+mod_xgb_dart <- xgb.cv(
+  params = xgboost_params, 
+  nrounds = 100,
+  prediction = TRUE, 
+  data = dense_train, 
+  nfold = 10, 
+  showsd = FALSE, 
+  maximize = FALSE,
+  early_stopping_rounds = 30,
+  max.depth=6,
+  gamma = 1,
+  eta = 0.1,
+  lambda = 0.2,
+  print_every_n = 1
+)
+
+best_iteration = mod_xgb_dart$best_iteration
+
+
+mod_xgb_dart_best <- xgboost(
+  params = xgboost_params, 
+  data = dense_train, 
+  nrounds = best_iteration, 
+  showsd = FALSE, 
+  maximize = FALSE,
+  max.depth=6,
+  gamma = 1,
+  eta = 0.1,
+  lambda = 0.2,
+  print_every_n = 50
+)
+
+importance_XGB  <- xgb.importance(feature_names = dimnames(sparse_train)[[2]],model = mod_xgb_dart_best)
+
+#plotting the feature importance of XGBoost model
+
+ggplot(data= filter(importance_XGB,Gain>1),aes(x=importance_XGB$Feature,y=importance_XGB$Gain))+
+  geom_bar(stat = "identity")
+#arrange size according to your data
+png(height=10000, width=10000, pointsize=2, file="Feature_Imp.png")
+
+#################################################################
+###########        PREDICTION WITH FINAL MODEL       ############
+#################################################################
+
+#predict with the best trained xgboost model
+
+pred_vect_dev_xgboost   <- predict(object = mod_xgb_dart_best, newdata = dense_train)
+pred_vect_test_xgboost  <- predict(object = mod_xgb_dart_best, newdata = dense_test)
+
+DT_PRED_S <- rbindlist(
+  use.names = TRUE, 
+  fill = TRUE, 
+  l = list(
+    data.table(sample = "dev", modelDevSample, predicted_xgb = pred_vect_dev_xgboost),
+    data.table(sample = "test",modelTestSample, predicted_xgb = pred_vect_test_xgboost
+    )
+  ))
+#train data
+absErrorDev_TargetvsEstimated_xgb <-  mean(abs(DT_PRED_S[DT_PRED_S$sample == "dev" ,TARGET] - DT_PRED_S[DT_PRED_S$sample == "dev",predicted_xgb]))
+mapeErrorDev_TargetvsEstimated_xgb <-  mean(abs(DT_PRED_S[DT_PRED_S$sample == "dev",TARGET] - DT_PRED_S[DT_PRED_S$sample == "dev" ,predicted_xgb])/abs(DT_PRED_S[DT_PRED_S$sample == "dev" ,TARGET]))
+
+#plotting the train sample 
+
+ggplot(data = filter(DT_PRED_S,sample == "dev"),aes(x=TARGET, y=predicted_xgb ))+
+  geom_point(alpha=0.5,size=1)+
+  geom_smooth()+
+  scale_x_log10()+scale_y_log10()+
+  geom_abline(aes(slope=1,intercept=0),colour='red')
+
+# test data
+absErrorTest_TargetvsEstimated_xgb <-  mean(abs(DT_PRED_S[DT_PRED_S$sample == "test" ,TARGET] - DT_PRED_S[DT_PRED_S$sample == "test",predicted_xgb]))
+mapeErrorTest_TargetvsEstimated_xgb <-  mean(abs(DT_PRED_S[DT_PRED_S$sample == "test",TARGET] - DT_PRED_S[DT_PRED_S$sample == "test",predicted_xgb])/abs(DT_PRED_S[DT_PRED_S$sample == "test",TARGET]))
+
+
+#plotting the train sample 
+
+ggplot(data = filter(DT_PRED_S,sample == "test"),aes(x=TARGET, y=predicted_xgb ))+
+  geom_point(alpha=0.5,size=1)+
+  geom_smooth()+
+  scale_x_log10()+scale_y_log10()+ #grafiği daraltıyo.
+  geom_abline(aes(slope=1,intercept=0),colour='red')
