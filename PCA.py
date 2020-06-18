@@ -1,9 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Mon May 18 19:29:59 2020
-
-@author: DSİ
-"""
 
 import pandas as pd
 import numpy as np
@@ -11,7 +6,7 @@ import matplotlib.pyplot as plt
 import statistics as st
 import seaborn as sns
 
-df = pd.read_csv('C:\\Users\\DSİ\\Desktop\\ar_proj_.csv', sep=";" )
+df = pd.read_csv('C:\\Users\\XXX\\Desktop\\XXX', sep=";" )
 
 #removing variables 
 df.drop(['Durulama_Sayisi'], axis=1, inplace=True)
