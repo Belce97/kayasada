@@ -1,6 +1,3 @@
-# kayasada
-Data Science with R program
-
 Hello everyone!!
 
 I am a new member at github platform. I just wanted to share my projects' code with all of you just in case you may be interested.. 
