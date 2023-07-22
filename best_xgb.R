@@ -11,7 +11,9 @@ library(openxlsx)
 h2o.init()
 
 options(java.parameters = "-Xmx8g")
-memory.limit(size=10000000000024)   #max bellek kullanÄ±mÄ± 
+
+memory.limit(size=10000000000024)   #max bellek kullanımı 
+
 Sys.setenv("R_MAX_VSIZE"=64000000000)
 
 
@@ -21,7 +23,8 @@ Sys.setenv("R_MAX_VSIZE"=64000000000)
 #################################################################
 
 # Read in csv files
-MAIN_TABLE <- read.table("C:\\Users\\XX\\Desktop\\XX.csv", 
+
+MAIN_TABLE <- read.table("C:\\Users\\DS�\\Desktop\\ar_proj_.csv", 
                          header = TRUE,
                          stringsAsFactors = FALSE,
                          sep = ";")
@@ -37,6 +40,7 @@ OZET<- as.data.table(OZET)
 
 #remove variables that have the same minimum and 
 #maximum values to avoid from "standard deviation is equal to zero" error. 
+
 MAIN_TABLE[,  c("feature_1") := NULL] 
 MAIN_TABLE$feature_1 <- NULL
 
@@ -59,7 +63,8 @@ MAIN_TABLE$feature_1 <- NULL
 
 your_data <- MAIN_TABLE
 # name
-work="COR_"
+
+work="ASSET_COR_"
 
 rquery.cormat<-function(x,
                         type=c('lower', 'upper', 'full', 'flatten'),
@@ -68,7 +73,9 @@ rquery.cormat<-function(x,
                         col=NULL, ...)
 { 
   # Result Location
+
   setwd("C:\\Users\\xxx\\Desktop\\file_name")
+
   
   library(corrplot)
   # Helper functions
@@ -169,6 +176,7 @@ corr_matrix<-rquery.cormat(your_data)
 #############    Create train/test/oot samples  #################
 ################################################################# 
 
+
 DT <- read.table("C:\\Users\\XX\\Desktop\\XX.csv", 
                  header = TRUE,
                  stringsAsFactors = FALSE,
@@ -185,6 +193,7 @@ colnames(DT)
 modelDevSeq <- sample(1:nrow(DT), round(nrow(DT)*0.75) , replace = FALSE)
 modelDevSample  <- DT[modelDevSeq]
 modelTestSample <- DT[!modelDevSeq] #dropping modelDevSeq table from DT and then getting modelTestSample
+
 
 #if you have data multiplexing or corr more than at least 80%, then you should remove them with following
 
@@ -220,6 +229,7 @@ dense_test <- xgb.DMatrix(data = sparse_test, label = label_test)
 gc()
 class(sparse_train) #dgCMatrix
 dim(sparse_train) #dimension
+
 head(sparse_train) 
 
 searchGridSubCol <- expand.grid(gamma = c(0,1), #default value set to 0.
@@ -243,6 +253,7 @@ rmseErrorsHyperparameters <- apply(searchGridSubCol, 1, function(parameterList){
                            nrounds = ntrees,
                            nfold = 5,
                            showsd = F,
+
                            print_every_n = 10, #learn every 10
                            "eval_metric" = "rmse", #evaluation metric
                            "objective"   = "reg:linear",
@@ -264,6 +275,7 @@ output <- as.data.table(t(rmseErrorsHyperparameters))
 varnames <- c("Test RMSE",  "currentGamma","currentLambda",  "currentDepth",  "currentEta")
 names(output) <- varnames
 head(output) 
+
 
 setwd("D:\\grid_search.")
 #
@@ -334,6 +346,7 @@ DT_PRED_S <- rbindlist(
   ))
 
 
+#dbWriteTable(jdbcConnection,name=paste("YKB_ASSET_",segment_name,"RESULTS_4",sep=""),DT_PRED_S)
 
 
 colnames(DT)
@@ -363,10 +376,9 @@ ggplot(data = filter(DT_PRED_S,sample == "test"),aes(x=Output, y=predicted_CAO_x
   scale_x_log10()+scale_y_log10()+ #grafiði daraltýyo.
   geom_abline(aes(slope=1,intercept=0),colour='red')
 
-# Result Location
-setwd("C:\\Users\\DSÝ\\Desktop\\arcelik_proje")
 
 ggsave(paste("Test_xgboost2",".png"),width =5,height=5)
+
 
 
 ggplot(data = filter(DT_PRED_S,sample == "dev"),aes(x=Output, y=predicted_CAO_xgb ))+
@@ -378,8 +390,8 @@ ggplot(data = filter(DT_PRED_S,sample == "dev"),aes(x=Output, y=predicted_CAO_xg
 
 ggsave(paste("Dev_xgboost2",".png"),width =5,height=5)
 
-#####feature importnace plotting --- gain vs weight
 
+#####feature importnace plotting --- gain vs weight
 important_vars <- importance_XGB[,1:2]
 important_vars <- important_vars %>% mutate(cumulativeGain = cumsum(Gain))
 important_vars <- important_vars[important_vars$cumulativeGain <= 1,1] 
